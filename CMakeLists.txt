@@ -12,5 +12,5 @@ include_directories(${CMAKE_SOURCE_DIR}/proto)
 
 # Añade subdirectorios de componentes
 add_subdirectory(memory_manager)
-# add_subdirectory(client)
+add_subdirectory(client)
 # add_subdirectory(mpointers)
