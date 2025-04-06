@@ -1,43 +1,37 @@
 syntax = "proto3";
 
-package memory;
-
-// Definir el servicio MemoryManager
 service MemoryManager {
   rpc Create (CreateRequest) returns (CreateResponse);
-  rpc Set (SetRequest) returns (SetResponse);
+  rpc Set (SetRequest) returns (Empty);
   rpc Get (GetRequest) returns (GetResponse);
-  rpc IncreaseRefCount (RefCountRequest) returns (RefCountResponse);
-  rpc DecreaseRefCount (RefCountRequest) returns (RefCountResponse);
+  rpc IncreaseRefCount (IdRequest) returns (Empty);
+  rpc DecreaseRefCount (IdRequest) returns (Empty);
 }
 
-// Definir los mensajes para las peticiones y respuestas
 message CreateRequest {
-  int32 size = 1;
+  uint32 size = 1;
   string type = 2;
 }
 
 message CreateResponse {
-  int32 id = 1;
+  uint32 id = 1;
 }
 
 message SetRequest {
-  int32 id = 1;
+  uint32 id = 1;
   string value = 2;
 }
 
-message SetResponse {}
-
 message GetRequest {
-  int32 id = 1;
+  uint32 id = 1;
 }
 
 message GetResponse {
   string value = 1;
 }
 
-message RefCountRequest {
-  int32 id = 1;
+message IdRequest {
+  uint32 id = 1;
 }
 
-message RefCountResponse {}
+message Empty {}
