@@ -14,11 +14,9 @@ public:
     MemoryTable(void* baseAddress, size_t totalSize)
         : base(baseAddress), maxSize(totalSize), currentOffset(0), nextId(1) {}
 
-    // Crear bloque reutilizando huecos si es posible
     uint32_t allocate(const std::string& type, size_t size) {
         std::lock_guard<std::mutex> lock(tableMutex);
 
-        // Buscar hueco disponible (First Fit)
         for (size_t i = 0; i < freeList.size(); ++i) {
             auto& [offset, freeSize] = freeList[i];
             if (freeSize >= size) {
@@ -39,7 +37,6 @@ public:
             }
         }
 
-        // Si no hay hueco suficiente, continuar desde el offset
         if (currentOffset + size > maxSize) {
             throw std::runtime_error("No hay suficiente memoria disponible.");
         }
@@ -54,7 +51,6 @@ public:
         return id;
     }
 
-    // Obtener bloque por ID
     MemoryBlock* get(uint32_t id) {
         std::lock_guard<std::mutex> lock(tableMutex);
         auto it = blocks.find(id);
@@ -64,7 +60,6 @@ public:
         return nullptr;
     }
 
-    // Incrementar/decrementar referencias
     void increaseRef(uint32_t id) {
         std::lock_guard<std::mutex> lock(tableMutex);
         auto it = blocks.find(id);
@@ -81,12 +76,10 @@ public:
         }
     }
 
-    // Obtener todos los bloques activos
     const std::unordered_map<uint32_t, MemoryBlock>& getAll() const {
         return blocks;
     }
 
-    // Eliminar un bloque y registrar su espacio en la free list
     void remove(uint32_t id) {
         std::lock_guard<std::mutex> lock(tableMutex);
         auto it = blocks.find(id);
@@ -95,10 +88,10 @@ public:
             size_t size = it->second.size;
             freeList.emplace_back(offset, size);
             blocks.erase(it);
+            coalesceFreeList();
         }
     }
 
-    // Exponer la free list para visualización en dumps
     std::vector<std::pair<size_t, size_t>> getFreeList() const {
         return freeList;
     }
@@ -112,6 +105,30 @@ private:
     std::unordered_map<uint32_t, MemoryBlock> blocks;
     std::vector<std::pair<size_t, size_t>> freeList;
     std::mutex tableMutex;
+
+    void coalesceFreeList() {
+        if (freeList.size() <= 1) return;
+
+        std::sort(freeList.begin(), freeList.end());
+
+        std::vector<std::pair<size_t, size_t>> merged;
+        merged.push_back(freeList[0]);
+
+        for (size_t i = 1; i < freeList.size(); ++i) {
+            auto& last = merged.back();
+            size_t lastEnd = last.first + last.second;
+            size_t currentStart = freeList[i].first;
+            size_t currentSize = freeList[i].second;
+
+            if (lastEnd == currentStart) {
+                last.second += currentSize;
+            } else {
+                merged.push_back(freeList[i]);
+            }
+        }
+
+        freeList = std::move(merged);
+    }
 };
 
 #endif // MEMORY_TABLE_H

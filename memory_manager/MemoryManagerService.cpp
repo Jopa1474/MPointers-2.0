@@ -23,12 +23,16 @@ static std::string obtenerTimestamp() {
     return ss.str();
 }
 
-void crearDump(const MemoryTable& table, const std::string& path) {
+void crearDump(const MemoryTable& table, const std::string& path, size_t totalMemBytes) {
     std::ofstream out(path);
     if (!out.is_open()) return;
 
-    out << "==== DUMP DE MEMORIA ====" << std::endl;
+    size_t memoriaUsada = 0;
+
+    out << "==== DUMP DE MEMORIA ====\n";
     for (const auto& [id, block] : table.getAll()) {
+        memoriaUsada += block.size;
+
         out << "ID: " << id
             << " | Tipo: " << block.type
             << " | Size: " << block.size
@@ -45,19 +49,29 @@ void crearDump(const MemoryTable& table, const std::string& path) {
             out << " | Valor: " << static_cast<char*>(block.address);
         }
 
-        out << std::endl;
+        out << "\n";
     }
 
     // Free List visible
-    out << "\n==== HUECOS DISPONIBLES (Free List) ====" << std::endl;
+    out << "\n==== HUECOS DISPONIBLES (Free List) ====\n";
     auto freeList = table.getFreeList();
+    size_t memoriaLibre = 0;
+
     if (freeList.empty()) {
-        out << "Sin huecos actualmente." << std::endl;
+        out << "Sin huecos actualmente.\n";
     } else {
         for (const auto& [offset, size] : freeList) {
-            out << "Offset: " << offset << " | Size: " << size << std::endl;
+            memoriaLibre += size;
+            out << "Offset: " << offset << " | Size: " << size << "\n";
         }
     }
+
+    // Estadísticas
+    out << "\n==== ESTADÍSTICAS DE MEMORIA ====\n";
+    out << "Total reservado: " << totalMemBytes << " bytes\n";
+    out << "Memoria usada : " << memoriaUsada << " bytes\n";
+    out << "Memoria libre : " << memoriaLibre << " bytes\n";
+    out << "Uso (%)       : " << (100.0 * memoriaUsada / totalMemBytes) << "%\n";
 
     out.close();
 }
@@ -78,9 +92,7 @@ MemoryManagerService::~MemoryManagerService() {
     std::cout << "MemoryManagerService finalizado." << std::endl;
 }
 
-grpc::Status MemoryManagerService::Create(grpc::ServerContext*,
-                                          const CreateRequest* request,
-                                          CreateResponse* response) {
+grpc::Status MemoryManagerService::Create(grpc::ServerContext*, const CreateRequest* request, CreateResponse* response) {
     const std::string& tipo = request->type();
     uint32_t tam = request->size();
 
@@ -95,9 +107,7 @@ grpc::Status MemoryManagerService::Create(grpc::ServerContext*,
     return grpc::Status::OK;
 }
 
-grpc::Status MemoryManagerService::Set(grpc::ServerContext*,
-                                       const SetRequest* request,
-                                       Empty*) {
+grpc::Status MemoryManagerService::Set(grpc::ServerContext*, const SetRequest* request, Empty*) {
     std::lock_guard<std::mutex> lock(memMutex);
 
     uint32_t id = request->id();
@@ -129,15 +139,13 @@ grpc::Status MemoryManagerService::Set(grpc::ServerContext*,
 
     std::filesystem::create_directories(dumpDirectory);
     std::string filename = dumpDirectory + "/dump_" + obtenerTimestamp() + ".txt";
-    crearDump(table, filename);
+    crearDump(table, filename, memorySize);
 
     std::cout << "[Set] Valor escrito en ID = " << id << std::endl;
     return grpc::Status::OK;
 }
 
-grpc::Status MemoryManagerService::Get(grpc::ServerContext*,
-                                       const GetRequest* request,
-                                       GetResponse* response) {
+grpc::Status MemoryManagerService::Get(grpc::ServerContext*, const GetRequest* request, GetResponse* response) {
     std::lock_guard<std::mutex> lock(memMutex);
 
     uint32_t id = request->id();
@@ -165,17 +173,13 @@ grpc::Status MemoryManagerService::Get(grpc::ServerContext*,
     return grpc::Status::OK;
 }
 
-grpc::Status MemoryManagerService::IncreaseRefCount(grpc::ServerContext*,
-                                                    const IdRequest* request,
-                                                    Empty*) {
+grpc::Status MemoryManagerService::IncreaseRefCount(grpc::ServerContext*, const IdRequest* request, Empty*) {
     table.increaseRef(request->id());
     std::cout << "[IncreaseRefCount] ID = " << request->id() << std::endl;
     return grpc::Status::OK;
 }
 
-grpc::Status MemoryManagerService::DecreaseRefCount(grpc::ServerContext*,
-                                                    const IdRequest* request,
-                                                    Empty*) {
+grpc::Status MemoryManagerService::DecreaseRefCount(grpc::ServerContext*, const IdRequest* request, Empty*) {
     table.decreaseRef(request->id());
     std::cout << "[DecreaseRefCount] ID = " << request->id() << std::endl;
     return grpc::Status::OK;
@@ -204,7 +208,7 @@ void MemoryManagerService::runGarbageCollector() {
 
         if (!toRemove.empty()) {
             std::string filename = dumpDirectory + "/gc_dump_" + obtenerTimestamp() + ".txt";
-            crearDump(table, filename);
+            crearDump(table, filename, memorySize);
         }
     }
 }

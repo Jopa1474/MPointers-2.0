@@ -1,35 +1,41 @@
-add_executable(client_app main.cpp
-    ../generated/memory.pb.cc
-    ../generated/memory.grpc.pb.cc
-)
-
-target_include_directories(client_app PRIVATE
-    ../generated
-    .
-)
+cmake_minimum_required(VERSION 3.16)
+project(ClientApp)
 
 find_package(Protobuf REQUIRED)
 find_package(gRPC REQUIRED)
 find_package(Threads REQUIRED)
 
-target_link_libraries(client_app
+add_executable(test_basic test_basic.cpp
+    ../generated/memory.pb.cc
+    ../generated/memory.grpc.pb.cc
+)
+target_include_directories(test_basic PRIVATE ../generated .)
+target_link_libraries(test_basic
     gRPC::grpc++
     protobuf::libprotobuf
     Threads::Threads
     gpr
 )
 
+
 add_executable(test_gc test_gc.cpp
     ../generated/memory.pb.cc
     ../generated/memory.grpc.pb.cc
 )
-
-target_include_directories(test_gc PRIVATE
-    ../generated
-    .
+target_include_directories(test_gc PRIVATE ../generated .)
+target_link_libraries(test_gc
+    gRPC::grpc++
+    protobuf::libprotobuf
+    Threads::Threads
+    gpr
 )
 
-target_link_libraries(test_gc
+add_executable(test_gc_coalesce test_gc_coalesce.cpp
+    ../generated/memory.pb.cc
+    ../generated/memory.grpc.pb.cc
+)
+target_include_directories(test_gc_coalesce PRIVATE ../generated .)
+target_link_libraries(test_gc_coalesce
     gRPC::grpc++
     protobuf::libprotobuf
     Threads::Threads
