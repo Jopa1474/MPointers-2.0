@@ -25,7 +25,7 @@ public:
 
         // Escribir valor: permite *ptr = 99;
         RemoteReference& operator=(const T& value) {
-            MPointerManager::getInstance().set(id, std::to_string(value));
+            MPointerManager::getInstance().set(id, MPointer<T>::to_string_value(value));
             return *this;
         }
 
@@ -99,15 +99,26 @@ private:
         if (std::is_same<T, float>::value) return "float";
         if (std::is_same<T, double>::value) return "double";
         if (std::is_same<T, std::string>::value) return "string";
+        if (std::is_same<T, uint32_t>::value) return "uint32_t";
         throw std::runtime_error("Tipo no soportado en MPointer<T>");
     }
 
     static T parse(const std::string& value) {
         if constexpr (std::is_same<T, int>::value) return std::stoi(value);
+        if constexpr (std::is_same<T, uint32_t>::value) return static_cast<uint32_t>(std::stoul(value));
         if constexpr (std::is_same<T, float>::value) return std::stof(value);
         if constexpr (std::is_same<T, double>::value) return std::stod(value);
         if constexpr (std::is_same<T, std::string>::value) return value;
         throw std::runtime_error("Tipo no soportado en parse<T>");
+    }
+
+    static std::string to_string_value(const T& value) {
+        if constexpr (std::is_same<T, int>::value) return std::to_string(value);
+        if constexpr (std::is_same<T, uint32_t>::value) return std::to_string(static_cast<unsigned long>(value));
+        if constexpr (std::is_same<T, float>::value) return std::to_string(value);
+        if constexpr (std::is_same<T, double>::value) return std::to_string(value);
+        if constexpr (std::is_same<T, std::string>::value) return value;
+        throw std::runtime_error("Tipo no soportado en to_string_value<T>");
     }
 };
 

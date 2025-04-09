@@ -41,6 +41,8 @@ void crearDump(const MemoryTable& table, const std::string& path, size_t totalMe
 
         if (block.type == "int") {
             out << " | Valor: " << *static_cast<int*>(block.address);
+        } else if (block.type == "uint32_t") {
+            out << " | Valor: " << *static_cast<uint32_t*>(block.address);
         } else if (block.type == "float") {
             out << " | Valor: " << *static_cast<float*>(block.address);
         } else if (block.type == "double") {
@@ -122,6 +124,9 @@ grpc::Status MemoryManagerService::Set(grpc::ServerContext*, const SetRequest* r
         if (block->type == "int") {
             int val = std::stoi(value);
             std::memcpy(block->address, &val, sizeof(int));
+        } else if (block->type == "uint32_t") {
+            uint32_t val = static_cast<uint32_t>(std::stoul(value));
+            std::memcpy(block->address, &val, sizeof(uint32_t));
         } else if (block->type == "float") {
             float val = std::stof(value);
             std::memcpy(block->address, &val, sizeof(float));
@@ -158,6 +163,8 @@ grpc::Status MemoryManagerService::Get(grpc::ServerContext*, const GetRequest* r
 
     if (block->type == "int") {
         out << *static_cast<int*>(block->address);
+    } else if (block->type == "uint32_t") {
+        out << *static_cast<uint32_t*>(block->address);
     } else if (block->type == "float") {
         out << *static_cast<float*>(block->address);
     } else if (block->type == "double") {

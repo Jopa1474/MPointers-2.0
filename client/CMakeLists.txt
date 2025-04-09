@@ -66,3 +66,16 @@ target_link_libraries(test_mpointer_assign
     Threads::Threads
     gpr
 )
+
+
+add_executable(test_linked_list test_linked_list.cpp
+    ../generated/memory.pb.cc
+    ../generated/memory.grpc.pb.cc
+)
+target_include_directories(test_linked_list PRIVATE ../generated ../mpointers .)
+target_link_libraries(test_linked_list
+    gRPC::grpc++
+    protobuf::libprotobuf
+    Threads::Threads
+    gpr
+)
