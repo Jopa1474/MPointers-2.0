@@ -41,3 +41,28 @@ target_link_libraries(test_gc_coalesce
     Threads::Threads
     gpr
 )
+
+
+add_executable(test_mpointer test_mpointer.cpp
+    ../generated/memory.pb.cc
+    ../generated/memory.grpc.pb.cc
+)
+target_include_directories(test_mpointer PRIVATE ../generated ../mpointers .)
+target_link_libraries(test_mpointer
+    gRPC::grpc++
+    protobuf::libprotobuf
+    Threads::Threads
+    gpr
+)
+
+add_executable(test_mpointer_assign test_mpointer_assign.cpp
+    ../generated/memory.pb.cc
+    ../generated/memory.grpc.pb.cc
+)
+target_include_directories(test_mpointer_assign PRIVATE ../generated ../mpointers .)
+target_link_libraries(test_mpointer_assign
+    gRPC::grpc++
+    protobuf::libprotobuf
+    Threads::Threads
+    gpr
+)
