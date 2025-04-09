@@ -1,3 +1,8 @@
+// Esta prueba verifica el funcionamiento correcto del Garbage Collector.
+// Se crea un bloque de memoria, se le asigna un valor, se reduce su refcount a 0
+// y luego se espera un tiempo para que el GC lo libere.
+// Finalmente, se intenta hacer un Get que debería fallar si fue eliminado correctamente.
+
 #include <iostream>
 #include <memory>
 #include <thread>
@@ -10,11 +15,13 @@ using grpc::ClientContext;
 using grpc::Status;
 using namespace std::chrono_literals;
 
+// Cliente gRPC que se comunica con el servidor MemoryManager
 class MemoryClient {
 public:
-    MemoryClient(std::shared_ptr<Channel> channel)
+    explicit MemoryClient(std::shared_ptr<Channel> channel)
         : stub(MemoryManager::NewStub(channel)) {}
 
+    // Solicita la creación de un bloque de memoria
     uint32_t Create(uint32_t size, const std::string& type) {
         CreateRequest req;
         req.set_size(size);
@@ -31,6 +38,7 @@ public:
         }
     }
 
+    // Escribe un valor en el bloque
     void Set(uint32_t id, const std::string& value) {
         SetRequest req;
         req.set_id(id);
@@ -45,6 +53,7 @@ public:
         }
     }
 
+    // Lee el valor almacenado en el bloque
     void Get(uint32_t id) {
         GetRequest req;
         req.set_id(id);
@@ -58,6 +67,7 @@ public:
         }
     }
 
+    // Disminuye el refcount del bloque (simula eliminación de referencia)
     void DecreaseRef(uint32_t id) {
         IdRequest req;
         req.set_id(id);
@@ -76,18 +86,23 @@ private:
 };
 
 int main() {
+    // Se conecta al servidor gRPC local
     MemoryClient client(grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials()));
 
     std::cout << "\n== INICIANDO TEST DEL GARBAGE COLLECTOR ==\n" << std::endl;
 
+    // Paso 1: crear bloque y asignar valor
     uint32_t id = client.Create(32, "int");
     client.Set(id, "99");
     client.Get(id);
 
-    client.DecreaseRef(id);  // refCount queda en 0
+    // Paso 2: simular destrucción de MPointer reduciendo refcount
+    client.DecreaseRef(id);
+
     std::cout << "[Cliente] Esperando 4 segundos para que el GC actúe..." << std::endl;
     std::this_thread::sleep_for(4s);
 
+    // Paso 3: intentar acceder nuevamente (debería fallar)
     std::cout << "[Cliente] Intentando Get nuevamente (debería fallar):" << std::endl;
     client.Get(id);
 

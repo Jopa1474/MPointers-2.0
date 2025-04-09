@@ -1,3 +1,8 @@
+// Implementación del servicio gRPC MemoryManager. Este archivo contiene toda
+// la lógica para gestionar la memoria remota: creación de bloques, lectura,
+// escritura, manejo de referencias, recolección de basura y generación de dumps.
+
+
 #include "MemoryManagerService.h"
 #include <iostream>
 #include <fstream>
@@ -10,6 +15,7 @@
 
 using namespace std;
 
+// Función auxiliar para obtener timestamp en formato legible
 static std::string obtenerTimestamp() {
     using namespace std::chrono;
 
@@ -23,6 +29,10 @@ static std::string obtenerTimestamp() {
     return ss.str();
 }
 
+//  Función que genera un archivo dump con:
+// - Bloques en uso
+// - Huecos en la Free List
+// - Estadísticas globales
 void crearDump(const MemoryTable& table, const std::string& path, size_t totalMemBytes) {
     std::ofstream out(path);
     if (!out.is_open()) return;
@@ -39,6 +49,7 @@ void crearDump(const MemoryTable& table, const std::string& path, size_t totalMe
             << " | RefCount: " << block.refCount
             << " | Dirección: " << block.address;
 
+        // Mostrar valor en memoria (si es tipo soportado)
         if (block.type == "int") {
             out << " | Valor: " << *static_cast<int*>(block.address);
         } else if (block.type == "uint32_t") {
@@ -54,7 +65,6 @@ void crearDump(const MemoryTable& table, const std::string& path, size_t totalMe
         out << "\n";
     }
 
-    // Free List visible
     out << "\n==== HUECOS DISPONIBLES (Free List) ====\n";
     auto freeList = table.getFreeList();
     size_t memoriaLibre = 0;
@@ -68,7 +78,6 @@ void crearDump(const MemoryTable& table, const std::string& path, size_t totalMe
         }
     }
 
-    // Estadísticas
     out << "\n==== ESTADÍSTICAS DE MEMORIA ====\n";
     out << "Total reservado: " << totalMemBytes << " bytes\n";
     out << "Memoria usada : " << memoriaUsada << " bytes\n";
@@ -78,6 +87,7 @@ void crearDump(const MemoryTable& table, const std::string& path, size_t totalMe
     out.close();
 }
 
+//  Constructor del servicio: inicializa tabla y lanza el GC
 MemoryManagerService::MemoryManagerService(void* memoryBase, size_t totalSize, const std::string& dumpFolder)
     : memoryStart(memoryBase), memorySize(totalSize), dumpDirectory(dumpFolder), table(memoryBase, totalSize) {
     std::cout << "MemoryManagerService iniciado." << std::endl;
@@ -86,6 +96,7 @@ MemoryManagerService::MemoryManagerService(void* memoryBase, size_t totalSize, c
     gcThread = std::thread(&MemoryManagerService::runGarbageCollector, this);
 }
 
+//  Destructor → detiene GC
 MemoryManagerService::~MemoryManagerService() {
     runningGC = false;
     if (gcThread.joinable()) {
@@ -94,6 +105,7 @@ MemoryManagerService::~MemoryManagerService() {
     std::cout << "MemoryManagerService finalizado." << std::endl;
 }
 
+//  gRPC: crear nuevo bloque en memoria
 grpc::Status MemoryManagerService::Create(grpc::ServerContext*, const CreateRequest* request, CreateResponse* response) {
     const std::string& tipo = request->type();
     uint32_t tam = request->size();
@@ -109,6 +121,7 @@ grpc::Status MemoryManagerService::Create(grpc::ServerContext*, const CreateRequ
     return grpc::Status::OK;
 }
 
+//  gRPC: escribir valor en memoria remota
 grpc::Status MemoryManagerService::Set(grpc::ServerContext*, const SetRequest* request, Empty*) {
     std::lock_guard<std::mutex> lock(memMutex);
 
@@ -150,6 +163,7 @@ grpc::Status MemoryManagerService::Set(grpc::ServerContext*, const SetRequest* r
     return grpc::Status::OK;
 }
 
+//  gRPC: leer valor remoto
 grpc::Status MemoryManagerService::Get(grpc::ServerContext*, const GetRequest* request, GetResponse* response) {
     std::lock_guard<std::mutex> lock(memMutex);
 
@@ -180,18 +194,21 @@ grpc::Status MemoryManagerService::Get(grpc::ServerContext*, const GetRequest* r
     return grpc::Status::OK;
 }
 
+//  gRPC: aumentar refCount
 grpc::Status MemoryManagerService::IncreaseRefCount(grpc::ServerContext*, const IdRequest* request, Empty*) {
     table.increaseRef(request->id());
     std::cout << "[IncreaseRefCount] ID = " << request->id() << std::endl;
     return grpc::Status::OK;
 }
 
+//  gRPC: disminuir refCount
 grpc::Status MemoryManagerService::DecreaseRefCount(grpc::ServerContext*, const IdRequest* request, Empty*) {
     table.decreaseRef(request->id());
     std::cout << "[DecreaseRefCount] ID = " << request->id() << std::endl;
     return grpc::Status::OK;
 }
 
+//  Hilo de Garbage Collector → ejecuta periódicamente
 void MemoryManagerService::runGarbageCollector() {
     using namespace std::chrono_literals;
 

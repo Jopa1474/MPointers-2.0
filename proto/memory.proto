@@ -1,37 +1,62 @@
+// Definición del servicio MemoryManager y los mensajes asociados.
+//
+// Este archivo define la interfaz gRPC que conecta al cliente con el servidor
+// de administración de memoria remota. Incluye los métodos disponibles que el
+// cliente puede invocar (Create, Set, Get, etc.) y los mensajes que se utilizan
+// en las solicitudes y respuestas.
+
+
 syntax = "proto3";
 
+// Servicio que expone las operaciones disponibles para interactuar con la memoria remota.
 service MemoryManager {
+  // Crea un nuevo bloque de memoria de cierto tipo y tamaño.
   rpc Create (CreateRequest) returns (CreateResponse);
+
+  // Asigna un valor a un bloque previamente creado.
   rpc Set (SetRequest) returns (Empty);
+
+  // Obtiene el valor actual almacenado en un bloque.
   rpc Get (GetRequest) returns (GetResponse);
+
+  // Incrementa el contador de referencias del bloque con ID dado.
   rpc IncreaseRefCount (IdRequest) returns (Empty);
+
+  // Decrementa el contador de referencias del bloque con ID dado.
   rpc DecreaseRefCount (IdRequest) returns (Empty);
 }
 
+// Solicitud para crear un nuevo bloque de memoria.
 message CreateRequest {
-  uint32 size = 1;
-  string type = 2;
+  uint32 size = 1;   // Tamaño del bloque (en bytes).
+  string type = 2;   // Tipo de dato ("int", "float", "string", etc.).
 }
 
+// Respuesta de la operación Create, incluye el ID del nuevo bloque.
 message CreateResponse {
   uint32 id = 1;
 }
 
+// Solicitud para escribir un valor en un bloque de memoria.
 message SetRequest {
-  uint32 id = 1;
-  string value = 2;
+  uint32 id = 1;       // ID del bloque a modificar.
+  string value = 2;    // Valor que se desea almacenar.
 }
 
+// Solicitud para obtener el valor de un bloque.
 message GetRequest {
   uint32 id = 1;
 }
 
+// Respuesta de la operación Get.
 message GetResponse {
   string value = 1;
 }
 
+// Mensaje genérico para operaciones que solo requieren un ID.
 message IdRequest {
   uint32 id = 1;
 }
 
+// Mensaje vacío usado como respuesta cuando no se retorna información.
 message Empty {}

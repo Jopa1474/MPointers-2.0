@@ -1,3 +1,14 @@
+// Clase responsable de administrar la tabla de bloques de memoria del sistema.
+// Lleva el control de todos los bloques asignados, su metadata y la Free List
+// (huecos disponibles). Es utilizada exclusivamente por el MemoryManagerService.
+//
+// Implementa:
+//  - asignación de memoria (con reutilización de huecos libres)
+//  - manejo de refcount
+//  - eliminación y liberación de bloques
+//  - fusión de huecos contiguos (coalescing)
+//  - obtención de información de diagnóstico para los dumps
+
 #ifndef MEMORY_TABLE_H
 #define MEMORY_TABLE_H
 
@@ -11,12 +22,16 @@
 
 class MemoryTable {
 public:
+    // Constructor que recibe el bloque base de memoria y su tamaño total
     MemoryTable(void* baseAddress, size_t totalSize)
         : base(baseAddress), maxSize(totalSize), currentOffset(0), nextId(1) {}
 
+    // Solicita un bloque de memoria del tipo y tamaño especificado.
+    // Primero intenta reutilizar huecos de la freeList. Si no hay, lo asigna secuencialmente.
     uint32_t allocate(const std::string& type, size_t size) {
         std::lock_guard<std::mutex> lock(tableMutex);
 
+        // Buscar hueco disponible (first-fit)
         for (size_t i = 0; i < freeList.size(); ++i) {
             auto& [offset, freeSize] = freeList[i];
             if (freeSize >= size) {
@@ -26,6 +41,7 @@ public:
                 MemoryBlock block(id, type, size, address);
                 blocks[id] = block;
 
+                // Actualizar hueco libre (consumido total o parcialmente)
                 if (freeSize == size) {
                     freeList.erase(freeList.begin() + i);
                 } else {
@@ -37,6 +53,7 @@ public:
             }
         }
 
+        // Si no se encontró hueco, intentar asignar al final
         if (currentOffset + size > maxSize) {
             throw std::runtime_error("No hay suficiente memoria disponible.");
         }
@@ -51,6 +68,7 @@ public:
         return id;
     }
 
+    // Devuelve un puntero al bloque con el ID dado, o nullptr si no existe
     MemoryBlock* get(uint32_t id) {
         std::lock_guard<std::mutex> lock(tableMutex);
         auto it = blocks.find(id);
@@ -60,6 +78,7 @@ public:
         return nullptr;
     }
 
+    // Incrementa el contador de referencias de un bloque
     void increaseRef(uint32_t id) {
         std::lock_guard<std::mutex> lock(tableMutex);
         auto it = blocks.find(id);
@@ -68,6 +87,7 @@ public:
         }
     }
 
+    // Decrementa el contador de referencias de un bloque
     void decreaseRef(uint32_t id) {
         std::lock_guard<std::mutex> lock(tableMutex);
         auto it = blocks.find(id);
@@ -76,10 +96,13 @@ public:
         }
     }
 
+    // Retorna todos los bloques actuales (por referencia constante)
     const std::unordered_map<uint32_t, MemoryBlock>& getAll() const {
         return blocks;
     }
 
+    // Elimina un bloque y lo libera, agregando su espacio a la Free List
+    // Aplica coalescing automáticamente si hay bloques contiguos
     void remove(uint32_t id) {
         std::lock_guard<std::mutex> lock(tableMutex);
         auto it = blocks.find(id);
@@ -92,20 +115,22 @@ public:
         }
     }
 
+    // Devuelve la lista de huecos libres (offset, tamaño)
     std::vector<std::pair<size_t, size_t>> getFreeList() const {
         return freeList;
     }
 
 private:
-    void* base;
-    size_t maxSize;
-    size_t currentOffset;
-    uint32_t nextId;
+    void* base; // Dirección base del bloque reservado (malloc)
+    size_t maxSize; // Tamaño total del bloque
+    size_t currentOffset; // Offset actual donde termina el uso secuencial
+    uint32_t nextId; // ID incremental para cada nuevo bloque
 
-    std::unordered_map<uint32_t, MemoryBlock> blocks;
-    std::vector<std::pair<size_t, size_t>> freeList;
-    std::mutex tableMutex;
+    std::unordered_map<uint32_t, MemoryBlock> blocks; // Bloques activos
+    std::vector<std::pair<size_t, size_t>> freeList; // Lista de huecos libres
+    std::mutex tableMutex; // Mutex para acceso concurrente seguro
 
+    // Fusiona bloques contiguos en la Free List para reducir fragmentación externa
     void coalesceFreeList() {
         if (freeList.size() <= 1) return;
 
